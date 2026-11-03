@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Editor</title>
+    <!-- ?v= changes with every edit so browsers never mix a cached old file with new ones -->
+    <link rel="stylesheet" href="styles.css?v=5">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand">SVG Editor</span>
+        <div class="file-actions">
+            <button type="button" id="btnNew" title="Clear the drawing (Ctrl+Z brings it back)">New</button>
+            <button type="button" id="btnOpen" title="Open an .svg file">Open…</button>
+            <button type="button" id="btnExport" title="Download the drawing as .svg (Ctrl+S)">Export</button>
+            <button type="button" id="btnCopy" title="Copy the selection, or the whole drawing, as SVG code">Copy SVG</button>
+            <button type="button" id="btnPaste" title="Paste SVG code or an image (Ctrl+V)">Paste</button>
+        </div>
+        <div class="topbar-right">
+            <div class="input-badge" id="inputBadge" data-type="none" title="Input device the editor sees">
+                <span class="input-dot" aria-hidden="true"></span>
+                <span id="inputLabel">No input yet</span>
+                <span class="meter" aria-hidden="true"><span id="pressureFill"></span></span>
+                <span class="mono" id="pressureValue">—</span>
+            </div>
+            <div class="zoom">
+                <button type="button" class="icon-btn" id="zoomOut" aria-label="Zoom out" title="Zoom out (Ctrl+−)">−</button>
+                <button type="button" class="mono zoom-label" id="zoomLabel" title="Zoom to fit (Shift+1)">100%</button>
+                <button type="button" class="icon-btn" id="zoomIn" aria-label="Zoom in" title="Zoom in (Ctrl+=)">+</button>
+            </div>
+            <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="false" aria-controls="panel">Panel</button>
+        </div>
+    </header>
+
+    <nav class="toolrail" aria-label="Tools">
+        <button type="button" class="tool" data-tool="select" aria-label="Select" title="Select (V)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.5 18.5 11l-5.6 1.5-3 5.5z"/></svg>
+        </button>
+        <button type="button" class="tool" data-tool="brush" aria-label="Brush" title="Brush (B)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 4.5l4 4L9 19l-5 1 1-5z"/><path d="M13 7l4 4"/></svg>
+        </button>
+        <button type="button" class="tool" data-tool="eraser" aria-label="Eraser" title="Eraser (E)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 14.6 13.4 5.8a2 2 0 0 1 2.8 0l3.4 3.4a2 2 0 0 1 0 2.8L12 19.6H8.6z"/><path d="M8.6 10.8l5.6 5.6"/><path d="M12 19.6h8"/></svg>
+        </button>
+        <button type="button" class="tool" data-tool="hand" aria-label="Pan" title="Pan (H, or hold Space)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/></svg>
+        </button>
+        <span class="rail-sep" aria-hidden="true"></span>
+        <button type="button" class="tool" id="btnUndo" aria-label="Undo" title="Undo (Ctrl+Z)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+        </button>
+        <button type="button" class="tool" id="btnRedo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+        </button>
+    </nav>
+
+    <main id="stage" tabindex="-1" data-tool="brush" aria-label="Canvas">
+        <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+            <g id="viewport">
+                <rect id="page" x="0" y="0" width="1200" height="800" fill="#ffffff"/>
+                <image id="ref" x="0" y="0" preserveAspectRatio="none"/>
+                <g id="content"></g>
+                <path id="live"/>
+            </g>
+            <g id="overlay"></g>
+            <g id="snapLayer"></g>
+            <g id="cursorLayer"><circle id="cursorHalo" r="0"/><circle id="cursorRing" r="0"/></g>
+        </svg>
+        <p class="empty-hint">Draw with a pen or mouse · paste SVG from Figma (Copy as SVG) · paste or drop an image to trace over</p>
+        <p class="drop-hint">Drop an image to trace over, or an .svg to add it</p>
+    </main>
+
+    <aside class="panel" id="panel" aria-label="Properties">
+        <section class="group">
+            <h2 id="strokeTitle">Brush</h2>
+            <div class="row">
+                <label for="strokeColor">Color</label>
+                <input type="color" id="strokeColor">
+                <input type="text" id="strokeHex" class="mono" spellcheck="false" aria-label="Color hex">
+            </div>
+            <div class="row" id="fillRow" title="Fills a stroke once its ends join into a closed shape">
+                <label class="row-check" for="filled"><input type="checkbox" id="filled"> Fill</label>
+                <input type="color" id="fillColor" aria-label="Fill color">
+                <input type="text" id="fillHex" class="mono" spellcheck="false" aria-label="Fill color hex">
+            </div>
+            <p class="muted" id="fillNote" hidden></p>
+            <div class="row">
+                <label for="widthRange">Width</label>
+                <input type="range" id="widthRange" min="0.5" max="64" step="0.5">
+                <input type="number" id="widthNum" min="0.5" max="200" step="0.5" aria-label="Width">
+            </div>
+            <div class="row">
+                <label for="opacityRange">Opacity</label>
+                <input type="range" id="opacityRange" min="0" max="100" step="1">
+                <input type="number" id="opacityNum" min="0" max="100" step="1" aria-label="Opacity percent">
+            </div>
+            <label class="check" title="A stroke that starts or ends on another stroke's end becomes part of it, and ending where the outline began closes the shape"><input type="checkbox" id="connect"> Join strokes that meet at their ends</label>
+            <div class="btn-row">
+                <button type="button" id="btnJoin" title="Join the selected strokes into one path, or close a single stroke (Ctrl+J)">Join strokes</button>
+            </div>
+            <label class="check"><input type="checkbox" id="pressure"> Vary width with pen pressure</label>
+            <div class="sub" id="pressureOpts">
+                <p class="muted">SVG strokes can't change width, so these strokes become filled shapes with two edges. They don't join up or take a fill. Leave this off to get a single-line path in Figma.</p>
+                <div class="row" title="Width at the lightest touch, as a share of full width">
+                    <label for="minwRange">Thinnest</label>
+                    <input type="range" id="minwRange" min="0" max="100" step="1">
+                    <input type="number" id="minwNum" min="0" max="100" step="1" aria-label="Thinnest width percent">
+                </div>
+                <div class="row" title="Below 1: light touches get wide fast. Above 1: you need to press harder.">
+                    <label for="gammaRange">Response</label>
+                    <input type="range" id="gammaRange" min="0.2" max="3" step="0.05">
+                    <input type="number" id="gammaNum" min="0.2" max="3" step="0.05" aria-label="Pressure response">
+                </div>
+            </div>
+        </section>
+
+        <section class="group">
+            <h2>Smoothing</h2>
+            <div class="seg" role="radiogroup" aria-label="How many anchor points">
+                <label title="Longer strokes get more points"><input type="radio" name="count" value="length"><span>Per length</span></label>
+                <label title="Every stroke gets the same number of points"><input type="radio" name="count" value="fixed"><span>Per stroke</span></label>
+            </div>
+            <div class="row" id="densityRow" title="Anchor points for every 100 px of stroke">
+                <label for="densityRange">Per 100px</label>
+                <input type="range" id="densityRange" min="0.5" max="30" step="0.5">
+                <input type="number" id="densityNum" min="0.5" max="200" step="0.5" aria-label="Anchor points per 100 px">
+            </div>
+            <div class="row" id="pointsRow">
+                <label for="pointsRange">Points</label>
+                <input type="range" id="pointsRange" min="2" max="200" step="1">
+                <input type="number" id="pointsNum" min="2" max="999" step="1" aria-label="Anchor points per stroke">
+            </div>
+            <div class="seg" role="radiogroup" aria-label="Where anchors go">
+                <label title="Anchors go where the stroke bends most"><input type="radio" name="mode" value="shape"><span>Keep shape</span></label>
+                <label title="Anchors are spaced evenly along the stroke"><input type="radio" name="mode" value="even"><span>Even spacing</span></label>
+            </div>
+            <div class="row" title="0 joins anchors with straight lines, 100 with full curves">
+                <label for="smoothRange">Curve</label>
+                <input type="range" id="smoothRange" min="0" max="100" step="1">
+                <input type="number" id="smoothNum" min="0" max="100" step="1" aria-label="Curve amount">
+            </div>
+            <div class="row" title="Averages out hand jitter before anchors are picked">
+                <label for="stabRange">Stabilize</label>
+                <input type="range" id="stabRange" min="0" max="40" step="1">
+                <input type="number" id="stabNum" min="0" max="40" step="1" aria-label="Stabilize amount">
+            </div>
+            <p class="readout" id="readout"></p>
+            <div class="row row-wide">
+                <span class="label">Anchors</span>
+                <div class="seg seg-inline" role="radiogroup" aria-label="Show anchors">
+                    <label title="On selected strokes and the one you just drew"><input type="radio" name="anchors" value="auto"><span>Active</span></label>
+                    <label><input type="radio" name="anchors" value="all"><span>All</span></label>
+                    <label><input type="radio" name="anchors" value="off"><span>Off</span></label>
+                </div>
+            </div>
+        </section>
+
+        <section class="group">
+            <h2>Reference image</h2>
+            <p class="muted" id="refInfo"></p>
+            <div class="btn-row">
+                <button type="button" id="refLoad">Load image…</button>
+                <button type="button" id="refPaste" title="Use the image on the clipboard, even if SVG code was copied with it">Paste</button>
+                <button type="button" id="refRemove">Remove</button>
+            </div>
+            <div class="row">
+                <label for="refOpacityRange">Opacity</label>
+                <input type="range" id="refOpacityRange" min="0" max="100" step="1">
+                <input type="number" id="refOpacityNum" min="0" max="100" step="1" aria-label="Reference opacity percent">
+            </div>
+            <label class="check"><input type="checkbox" id="refVisible"> Show reference</label>
+            <div class="btn-row">
+                <button type="button" id="refFitCanvas" title="Resize the canvas to the image's pixel size">Canvas to image size</button>
+                <button type="button" id="refFitImage" title="Scale the image to fit inside the canvas">Fit image in canvas</button>
+            </div>
+        </section>
+
+        <section class="group">
+            <h2>Canvas and export</h2>
+            <div class="row row-size">
+                <label for="docW">Size</label>
+                <input type="number" id="docW" min="1" max="20000" step="1" aria-label="Canvas width">
+                <span aria-hidden="true">×</span>
+                <input type="number" id="docH" min="1" max="20000" step="1" aria-label="Canvas height">
+            </div>
+            <div class="row">
+                <label for="docBg">Paper</label>
+                <input type="color" id="docBg">
+                <span></span>
+            </div>
+            <label class="check"><input type="checkbox" id="exportBg"> Include paper color in export</label>
+            <label class="check"><input type="checkbox" id="keepData"> Keep stroke data in exported files</label>
+            <p class="muted">Export and Copy SVG crop to what you've drawn, not the canvas. Stroke data lets this editor re-shape strokes after you reopen the file; copies to Figma never include it.</p>
+        </section>
+
+        <details class="group help">
+            <summary>Shortcuts and tips</summary>
+            <dl>
+                <dt>B · E · V · H</dt><dd>Brush, eraser, select, pan</dd>
+                <dt>Space + drag</dt><dd>Pan (pen barrel button too)</dd>
+                <dt>Ctrl + wheel</dt><dd>Zoom (pinch on touch)</dd>
+                <dt>Shift+1 · Shift+0</dt><dd>Zoom to fit · 100%</dd>
+                <dt>[ ]</dt><dd>Brush width</dd>
+                <dt>, .</dt><dd>Fewer / more points, or per-100px density (Shift: ×5)</dd>
+                <dt>Ctrl+Z · Ctrl+Shift+Z</dt><dd>Undo · redo</dd>
+                <dt>Ctrl+C · X · V</dt><dd>Copy, cut, paste as SVG</dd>
+                <dt>Ctrl+Shift+V</dt><dd>Paste at original position</dd>
+                <dt>Ctrl+D</dt><dd>Duplicate</dd>
+                <dt>Ctrl+J</dt><dd>Join selected strokes · close one</dd>
+                <dt>Ctrl+G · Ctrl+Shift+G</dt><dd>Group · ungroup</dd>
+                <dt>Ctrl+] · Ctrl+[</dt><dd>Bring forward · send backward</dd>
+                <dt>Alt + drag</dt><dd>Duplicate while moving</dd>
+                <dt>Shift + corner</dt><dd>Scale keeping proportions</dd>
+                <dt>Delete</dt><dd>Remove selection</dd>
+            </dl>
+            <p><strong>From Figma:</strong> select layers, right-click → Copy/Paste as → Copy as SVG, then Ctrl+V here. A normal Ctrl+C in Figma copies Figma's own format, which other apps can't read.</p>
+            <p><strong>Filled shapes:</strong> start each stroke on the end of the last one (a ring shows when it will join) and finish where you began. Then tick Fill.</p>
+            <p><strong>Reference image:</strong> copy any image or take a screenshot (Win+Shift+S), then Ctrl+V here. From Figma, use Copy as PNG (Shift+Ctrl+C).</p>
+            <p><strong>To Figma:</strong> select here, Ctrl+C, then Ctrl+V in Figma. It arrives as editable vectors.</p>
+            <p><strong>Tablet shows as “Mouse”?</strong> Turn on Windows Ink in your tablet driver settings. Browsers only get pen pressure through it.</p>
+        </details>
+    </aside>
+
+    <footer class="statusbar">
+        <span id="hint"></span>
+        <span id="status" class="mono"></span>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <input type="file" id="fileRef" accept="image/*" hidden>
+    <input type="file" id="fileOpen" accept=".svg,image/svg+xml" hidden>
+
+    <script src="js/geometry.js?v=5"></script>
+    <script src="js/svgio.js?v=5"></script>
+    <script src="js/app.js?v=5"></script>
+</body>
+</html>
